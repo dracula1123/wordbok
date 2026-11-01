@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WordBOK</title>
+
+<!-- Quill.js (BSD-3, açık kaynak) – sadece stil dosyası -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+<!-- Tailwind CSS (MIT, açık kaynak) -->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+
+<style>
+  body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif; }
+
+  /* ---- Ribbon düğmeleri ---- */
+  .rb { display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:30px;
+        padding:0 8px; border:1px solid transparent; border-radius:3px; background:transparent;
+        color:#262626; font-size:14px; cursor:pointer; user-select:none; }
+  .rb:hover { background:#e1dfdd; border-color:#c8c6c4; }
+  .rb.active { background:#c7e0f4; border-color:#7aaed6; }
+  .rb-text { height:auto; padding:6px 10px; font-size:13px; flex-direction:column; gap:2px; }
+  .group { display:flex; flex-direction:column; justify-content:space-between; padding:0 10px;
+           border-right:1px solid #d6d6d6; }
+  .group-body { display:flex; align-items:center; gap:2px; flex-wrap:wrap; min-height:62px; }
+  .group-label { text-align:center; font-size:11px; color:#605e5c; padding-top:2px; }
+
+  /* Stil galerisi */
+  .style-btn { width:74px; height:58px; border:1px solid #c8c6c4; border-radius:3px; background:#fff;
+               display:flex; flex-direction:column; align-items:center; justify-content:center;
+               cursor:pointer; margin-right:4px; }
+  .style-btn:hover { border-color:#2b579a; }
+  .style-btn.active { background:#c7e0f4; border-color:#2b579a; }
+  .style-btn span.t { line-height:1.1; }
+  .style-btn span.n { font-size:10px; color:#605e5c; margin-top:3px; }
+
+  /* Renk düğmesi */
+  .color-wrap { position:relative; width:34px; height:30px; display:inline-flex; flex-direction:column;
+                align-items:center; justify-content:center; border:1px solid transparent; border-radius:3px; }
+  .color-wrap:hover { background:#e1dfdd; border-color:#c8c6c4; }
+  .color-wrap input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+  .color-bar { width:18px; height:4px; margin-top:1px; }
+
+  /* ---- Sayfa (kağıt) ---- */
+  #page { width:794px; max-width:100%; min-height:1123px; background:#fff; margin:0 auto;
+          box-shadow:0 1px 4px rgba(0,0,0,.35); transform-origin:top center; }
+  #page .ql-container.ql-snow { border:none; font-family:Calibri, Carlito, "Segoe UI", Arial, sans-serif; font-size:11pt; }
+  #page .ql-editor { padding:96px 96px; min-height:1123px; line-height:1.5; color:#000; }
+  #page .ql-editor.ql-blank::before { left:96px; font-style:normal; color:#9a9a9a; }
+  #page .ql-editor h1 { font-size:20pt; font-weight:600; margin:12pt 0 4pt; color:#2b579a; }
+  #page .ql-editor h2 { font-size:16pt; font-weight:600; margin:10pt 0 4pt; color:#2b579a; }
+  #page .ql-editor h3 { font-size:13pt; font-weight:600; margin:8pt 0 4pt; color:#1f3763; }
+  #page .ql-editor p  { margin:0 0 8pt; }
+
+  @media (max-width: 860px) { #page .ql-editor { padding:40px 28px; } #page .ql-editor.ql-blank::before { left:28px; } }
+</style>
+</head>
+
+<body class="h-screen flex flex-col bg-gray-200 overflow-hidden">
+
+  <!-- Başlık çubuğu -->
+  <header class="flex items-center gap-3 px-4 h-10 text-white" style="background:#2b579a">
+    <svg width="20" height="20" viewBox="0 0 20 20"><rect x="1" y="2" width="18" height="16" rx="2" fill="#fff"/><text x="10" y="14.5" text-anchor="middle" font-size="11" font-weight="700" fill="#2b579a" font-family="Arial">W</text></svg>
+    <input id="docTitle" value="Belge1" spellcheck="false"
+           class="bg-transparent border border-transparent hover:border-white/40 focus:border-white/70 focus:bg-white/10 rounded px-2 py-0.5 text-sm outline-none w-56" />
+    <span id="saveStatus" class="text-xs text-white/80 ml-auto"></span>
+  </header>
+
+  <!-- Sekmeler -->
+  <nav class="flex gap-1 px-3 pt-1 bg-[#f3f3f3] border-b border-gray-300 text-sm" id="tabs">
+    <button class="tab px-4 py-1.5 rounded-t" data-tab="file">Dosya</button>
+    <button class="tab px-4 py-1.5 rounded-t" data-tab="home">Giriş</button>
+    <button class="tab px-4 py-1.5 rounded-t" data-tab="view">Görünüm</button>
+  </nav>
+
+  <!-- Ribbon paneli -->
+  <section id="ribbon" class="bg-[#f9f9f9] border-b border-gray-300 px-2 py-2 overflow-x-auto">
+
+    <!-- DOSYA -->
+    <div class="panel flex" data-panel="file">
+      <div class="group"><div class="group-body">
+        <button class="rb rb-text" id="btnNew"><span style="font-size:20px">📄</span><span>Yeni</span></button>
+      </div><div class="group-label">Belge</div></div>
+
+      <div class="group"><div class="group-body">
+        <button class="rb rb-text" id="btnSave"><span style="font-size:20px">💾</span><span>Tarayıcıya Kaydet</span></button>
+        <button class="rb rb-text" id="btnLoad"><span style="font-size:20px">📂</span><span>Tarayıcıdan Aç</span></button>
+      </div><div class="group-label">Tarayıcı Hafızası (LocalStorage)</div></div>
+
+      <div class="group"><div class="group-body">
+        <button class="rb rb-text" id="btnDoc"><span style="font-size:20px">⬇️</span><span>.doc olarak indir</span></button>
+        <button class="rb rb-text" id="btnTxt"><span style="font-size:20px">📝</span><span>.txt olarak indir</span></button>
+      </div><div class="group-label">Bilgisayara İndir</div></div>
+    </div>
+
+    <!-- GİRİŞ -->
+    <div class="panel flex" data-panel="home" style="display:none">
+      <div class="group"><div class="group-body">
+        <button class="rb" data-cmd="undo" title="Geri al (Ctrl/⌘+Z)" style="font-size:18px">↶</button>
+        <button class="rb" data-cmd="redo" title="Yinele (Ctrl/⌘+Shift+Z)" style="font-size:18px">↷</button>
+      </div><div class="group-label">Geri Al</div></div>
+
+      <div class="group"><div class="group-body" style="max-width:230px">
+        <button class="rb" data-fmt="bold" title="Kalın (Ctrl/⌘+B)"><b>K</b></button>
+        <button class="rb" data-fmt="italic" title="İtalik (Ctrl/⌘+I)"><i style="font-family:serif">İ</i></button>
+        <button class="rb" data-fmt="underline" title="Altı çizili (Ctrl/⌘+U)"><u>A</u></button>
+        <button class="rb" data-fmt="strike" title="Üstü çizili"><s>ab</s></button>
+
+        <span class="color-wrap" title="Metin rengi">
+          <span style="font-weight:700;font-size:14px;line-height:1">A</span>
+          <span class="color-bar" id="fontColorBar" style="background:#d00000"></span>
+          <input type="color" id="fontColor" value="#d00000">
+        </span>
+        <span class="color-wrap" title="Vurgu rengi">
+          <span style="font-size:13px;line-height:1">🖍</span>
+          <span class="color-bar" id="bgColorBar" style="background:#ffeb3b"></span>
+          <input type="color" id="bgColor" value="#ffeb3b">
+        </span>
+        <button class="rb" data-cmd="clean" title="Biçimlendirmeyi temizle">⌫</button>
+      </div><div class="group-label">Yazı Tipi</div></div>
+
+      <div class="group"><div class="group-body" style="max-width:250px">
+        <button class="rb" data-fmt="list" data-val="bullet"  title="Madde işaretleri" data-icon="bullet"></button>
+        <button class="rb" data-fmt="list" data-val="ordered" title="Numaralandırma"   data-icon="ordered"></button>
+        <span style="width:8px"></span>
+        <button class="rb" data-fmt="align" data-val="left"    title="Sola hizala"  data-icon="left"></button>
+        <button class="rb" data-fmt="align" data-val="center"  title="Ortala"       data-icon="center"></button>
+        <button class="rb" data-fmt="align" data-val="right"   title="Sağa hizala"  data-icon="right"></button>
+        <button class="rb" data-fmt="align" data-val="justify" title="İki yana yasla" data-icon="justify"></button>
+      </div><div class="group-label">Paragraf</div></div>
+
+      <div class="group"><div class="group-body">
+        <button class="style-btn" data-fmt="header" data-val="0"><span class="t" style="font-size:13px">AaBbCc</span><span class="n">Normal</span></button>
+        <button class="style-btn" data-fmt="header" data-val="1"><span class="t" style="font-size:18px;font-weight:600;color:#2b579a">AaBb</span><span class="n">Başlık 1</span></button>
+        <button class="style-btn" data-fmt="header" data-val="2"><span class="t" style="font-size:15px;font-weight:600;color:#2b579a">AaBb</span><span class="n">Başlık 2</span></button>
+        <button class="style-btn" data-fmt="header" data-val="3"><span class="t" style="font-size:13px;font-weight:600;color:#1f3763">AaBb</span><span class="n">Başlık 3</span></button>
+      </div><div class="group-label">Stiller</div></div>
+    </div>
+
+    <!-- GÖRÜNÜM -->
+    <div class="panel flex" data-panel="view" style="display:none">
+      <div class="group"><div class="group-body">
+        <button class="rb" id="zoomOut" style="font-size:18px" title="Uzaklaştır">−</button>
+        <span id="zoomLabel" class="text-sm w-12 text-center">100%</span>
+        <button class="rb" id="zoomIn" style="font-size:18px" title="Yakınlaştır">+</button>
+        <button class="rb" id="zoomReset" title="%100">%100</button>
+      </div><div class="group-label">Yakınlaştır</div></div>
+    </div>
+  </section>
+
+  <!-- Çalışma alanı -->
+  <main class="flex-1 overflow-auto py-6 px-3" id="workspace">
+    <div id="page"><div id="editor"></div></div>
+  </main>
+
+  <!-- Durum çubuğu -->
+  <footer class="h-7 px-4 flex items-center gap-6 text-xs text-white" style="background:#2b579a">
+    <span id="wordCount">0 sözcük</span>
+    <span id="charCount">0 karakter</span>
+    <span class="ml-auto">Quill.js ile çalışır</span>
+  </footer>
+
+  <!-- Quill.js (BSD-3, açık kaynak) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'wordlike_editor_doc_v1';
+
+  /* ---------- Editörü başlat (Quill'in kendi araç çubuğu kapalı, kendi ribbon'umuzu kullanıyoruz) ---------- */
+  const quill = new Quill('#editor', {
+    theme: 'snow',
+    placeholder: 'Yazmaya başlayın…',
+    modules: { toolbar: false, history: { delay: 800, maxStack: 200, userOnly: true } }
+  });
+
+  /* ---------- Sekmeler ---------- */
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  function showTab(name) {
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.style.background = on ? '#f9f9f9' : 'transparent';
+      t.style.fontWeight = on ? '600' : '400';
+      t.style.color = on ? '#2b579a' : '#333';
+      t.style.border = on ? '1px solid #d0d0d0' : '1px solid transparent';
+      t.style.borderBottom = on ? '1px solid #f9f9f9' : '1px solid transparent';
+      t.style.marginBottom = '-1px';
+    });
+    panels.forEach(p => p.style.display = p.dataset.panel === name ? 'flex' : 'none');
+  }
+  tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  showTab('home');
+
+  /* ---------- İkonlar (SVG) ---------- */
+  function lineIcon(type) {
+    const widths = [14, 9, 14, 9], ys = [3, 7, 11, 15];
+    let s = '<svg width="18" height="18" viewBox="0 0 18 18" stroke="#262626" stroke-width="1.6" stroke-linecap="round">';
+    widths.forEach((w, i) => {
+      let x1 = 2;
+      if (type === 'center') x1 = (18 - w) / 2;
+      if (type === 'right') x1 = 16 - w;
+      const len = type === 'justify' ? 14 : w;
+      if (type === 'justify') x1 = 2;
+      s += `<line x1="${x1}" y1="${ys[i]}" x2="${x1 + len}" y2="${ys[i]}"/>`;
+    });
+    return s + '</svg>';
+  }
+  const ICONS = {
+    left: lineIcon('left'), center: lineIcon('center'), right: lineIcon('right'), justify: lineIcon('justify'),
+    bullet: '<svg width="18" height="18" viewBox="0 0 18 18" stroke="#262626" stroke-width="1.6" stroke-linecap="round" fill="#262626"><circle cx="3" cy="4" r="1.3" stroke="none"/><circle cx="3" cy="9" r="1.3" stroke="none"/><circle cx="3" cy="14" r="1.3" stroke="none"/><line x1="7" y1="4" x2="16" y2="4"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="14" x2="16" y2="14"/></svg>',
+    ordered: '<svg width="18" height="18" viewBox="0 0 18 18" stroke="#262626" stroke-width="1.6" stroke-linecap="round"><text x="0" y="6" font-size="6" fill="#262626" stroke="none" font-family="Arial">1</text><text x="0" y="11" font-size="6" fill="#262626" stroke="none" font-family="Arial">2</text><text x="0" y="16" font-size="6" fill="#262626" stroke="none" font-family="Arial">3</text><line x1="7" y1="4" x2="16" y2="4"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="14" x2="16" y2="14"/></svg>'
+  };
+  document.querySelectorAll('[data-icon]').forEach(el => el.innerHTML = ICONS[el.dataset.icon]);
+
+  /* ---------- Ribbon düğmeleri: odak/seçim kaybolmasın ---------- */
+  document.getElementById('ribbon').addEventListener('mousedown', e => {
+    if (e.target.closest('input[type=color]')) return;      // renk seçici açılabilsin
+    if (e.target.closest('button')) e.preventDefault();      // seçim editörde kalsın
+  });
+
+  const TOGGLE_FORMATS = ['bold', 'italic', 'underline', 'strike'];
+
+  function ensureFocus() { if (!quill.hasFocus()) quill.focus(); }
+
+  document.querySelectorAll('[data-fmt]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ensureFocus();
+      const fmt = btn.dataset.fmt, val = btn.dataset.val;
+      const cur = quill.getFormat();
+
+      if (TOGGLE_FORMATS.includes(fmt)) {
+        quill.format(fmt, !cur[fmt], 'user');
+      } else if (fmt === 'header') {
+        const n = parseInt(val, 10);
+        quill.format('header', (n === 0 || cur.header === n) ? false : n, 'user');
+      } else if (fmt === 'list') {
+        quill.format('list', cur.list === val ? false : val, 'user');
+      } else if (fmt === 'align') {
+        quill.format('align', val === 'left' ? false : val, 'user');
+      }
+      refreshToolbar();
+    });
+  });
+
+  document.querySelectorAll('[data-cmd]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ensureFocus();
+      const c = btn.dataset.cmd;
+      if (c === 'undo') quill.history.undo();
+      if (c === 'redo') quill.history.redo();
+      if (c === 'clean') {
+        const r = quill.getSelection();
+        if (r && r.length) quill.removeFormat(r.index, r.length, 'user');
+      }
+      refreshToolbar();
+    });
+  });
+
+  /* ---------- Renk seçiciler ---------- */
+  let lastRange = null;
+  quill.on('selection-change', r => { if (r) lastRange = r; refreshToolbar(); });
+
+  function bindColor(inputId, barId, format) {
+    const input = document.getElementById(inputId), bar = document.getElementById(barId);
+    input.addEventListener('mousedown', () => { const r = quill.getSelection(); if (r) lastRange = r; });
+    input.addEventListener('input', () => {
+      bar.style.background = input.value;
+      quill.focus();
+      if (lastRange) quill.setSelection(lastRange.index, lastRange.length);
+      quill.format(format, input.value, 'user');
+    });
+  }
+  bindColor('fontColor', 'fontColorBar', 'color');
+  bindColor('bgColor', 'bgColorBar', 'background');
+
+  /* ---------- Aktif düğme durumları ---------- */
+  function refreshToolbar() {
+    const f = quill.getFormat();
+    document.querySelectorAll('[data-fmt]').forEach(btn => {
+      const fmt = btn.dataset.fmt, val = btn.dataset.val;
+      let on = false;
+      if (TOGGLE_FORMATS.includes(fmt)) on = !!f[fmt];
+      else if (fmt === 'header') on = (parseInt(val, 10) === 0) ? !f.header : f.header === parseInt(val, 10);
+      else if (fmt === 'list') on = f.list === val;
+      else if (fmt === 'align') on = (f.align || 'left') === val;
+      btn.classList.toggle('active', on);
+    });
+  }
+
+  /* ---------- Sözcük / karakter sayacı ---------- */
+  function updateCounts() {
+    const text = quill.getText().replace(/\n$/, '');
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    document.getElementById('wordCount').textContent = words + ' sözcük';
+    document.getElementById('charCount').textContent = text.length + ' karakter';
+  }
+  quill.on('text-change', () => { updateCounts(); refreshToolbar(); });
+
+  /* ---------- Yakınlaştırma ---------- */
+  let zoom = 100;
+  function applyZoom() {
+    document.getElementById('page').style.zoom = zoom / 100;
+    document.getElementById('zoomLabel').textContent = zoom + '%';
+  }
+  document.getElementById('zoomIn').onclick = () => { zoom = Math.min(200, zoom + 10); applyZoom(); };
+  document.getElementById('zoomOut').onclick = () => { zoom = Math.max(50, zoom - 10); applyZoom(); };
+  document.getElementById('zoomReset').onclick = () => { zoom = 100; applyZoom(); };
+
+  /* ---------- Durum mesajı ---------- */
+  const statusEl = document.getElementById('saveStatus');
+  let statusTimer;
+  function flash(msg) {
+    statusEl.textContent = msg;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => statusEl.textContent = '', 3500);
+  }
+
+  /* ---------- LocalStorage: Kaydet / Aç / Yeni ---------- */
+  function saveToBrowser() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        title: document.getElementById('docTitle').value,
+        delta: quill.getContents(),
+        savedAt: new Date().toISOString()
+      }));
+      flash('✓ Tarayıcıya kaydedildi (' + new Date().toLocaleTimeString('tr-TR') + ')');
+    } catch (err) {
+      flash('Kaydedilemedi: tarayıcı depolamaya izin vermiyor.');
+    }
+  }
+  function loadFromBrowser(silent) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) { if (!silent) flash('Kayıtlı belge bulunamadı.'); return; }
+      const data = JSON.parse(raw);
+      document.getElementById('docTitle').value = data.title || 'Belge1';
+      quill.setContents(data.delta, 'silent');
+      updateCounts();
+      if (!silent) flash('✓ Kayıtlı belge açıldı');
+    } catch (err) {
+      if (!silent) flash('Kayıtlı belge okunamadı.');
+    }
+  }
+  document.getElementById('btnSave').onclick = saveToBrowser;
+  document.getElementById('btnLoad').onclick = () => loadFromBrowser(false);
+  document.getElementById('btnNew').onclick = () => {
+    if (quill.getLength() > 1 && !confirm('Mevcut içerik silinecek. Devam edilsin mi?')) return;
+    quill.setContents([{ insert: '\n' }], 'silent');
+    document.getElementById('docTitle').value = 'Belge1';
+    updateCounts();
+  };
+
+  // Cmd/Ctrl + S
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveToBrowser(); }
+  });
+
+  /* ---------- İndirme (.doc / .txt) ---------- */
+  function safeName() {
+    return (document.getElementById('docTitle').value || 'belge')
+      .replace(/[\\/:*?"<>|]+/g, '').trim() || 'belge';
+  }
+  function download(content, mime, filename) {
+    const blob = new Blob([content], { type: mime });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Quill listeleri <ol data-list="bullet"> üretir; Word'de doğru görünmesi   <ul>/<ol>'a çevir
+  function exportHtml() {
+    const root = quill.root.cloneNode(true);
+    root.querySelectorAll('ol').forEach(ol => {
+      const items = Array.from(ol.children);
+      const frag = document.createDocumentFragment();
+      let cur = null, curType = null;
+      items.forEach(li => {
+        const type = li.getAttribute('data-list') === 'bullet' ? 'ul' : 'ol';
+        if (type !== curType) { cur = document.createElement(type); frag.appendChild(cur); curType = type; }
+        li.removeAttribute('data-list');
+        li.querySelectorAll('.ql-ui').forEach(n => n.remove());
+        cur.appendChild(li);
+      });
+      ol.replaceWith(frag);
+    });
+    return root.innerHTML;
+  }
+
+  document.getElementById('btnDoc').onclick = () => {
+    const html = '\ufeff<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+      'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+      '<head><meta charset="utf-8"><title>' + safeName().replace(/</g, '&lt;') + '</title>' +
+      '<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.4}' +
+      'h1{font-size:20pt;color:#2b579a}h2{font-size:16pt;color:#2b579a}h3{font-size:13pt;color:#1f3763}' +
+      '.ql-align-center{text-align:center}.ql-align-right{text-align:right}.ql-align-justify{text-align:justify}' +
+      '</style></head><body>' + exportHtml() + '</body></html>';
+    download(html, 'application/msword', safeName() + '.doc');
+    flash('✓ .doc dosyası indirildi');
+  };
+  document.getElementById('btnTxt').onclick = () => {
+    download('\ufeff' + quill.getText(), 'text/plain;charset=utf-8', safeName() + '.txt');
+    flash('✓ .txt dosyası indirildi');
+  };
+
+  /* ---------- Açılış ---------- */
+  loadFromBrowser(true);   // daha önce kaydedilmiş belge varsa otomatik aç
+  updateCounts();
+  refreshToolbar();
+})();
+</script>
+</body>
+</html>
